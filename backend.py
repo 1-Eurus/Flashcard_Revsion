@@ -5,9 +5,9 @@ import random
 file= pd.read_excel("info.xlsx") 
 
 
-class Empty(Exception): #custom exception for empty fields
-    print("The fields were left empty!")
-
+class Empty(Exception):
+    def __init__(self, message="The fields were left empty!"):
+        super().__init__(message) #custom exception for empty fields
 
 def exit():
     global file 
@@ -38,23 +38,18 @@ def add(question,answer):#to add a new question and answer
         file.to_excel("info.xlsx", index=False)
 
 
-def check(question,answer):
-    #Gets the correct answer for the given question
+def check(question, answer):
     correct_answer = file[file["Question"] == question]["Answer"].iloc[0]
-    
 
-
-    if answer.lower().strip() == correct_answer.lower().strip(): #simplifies the answer to lowercase, removes white space to check the answer properly
-
+    if answer.lower().strip() == correct_answer.lower().strip():
         print("Correct!")
-        file.loc[file["Question"] == question, "Success"] = file[file["Question"] == question]["Success"].iloc[0] + 1  #if answer is correct, the success count is incremented
-        
-        return True
+        file.loc[file["Question"] == question, "Success"] = file[file["Question"] == question]["Success"].iloc[0] + 1  
+        return True, correct_answer  
     else:
         print(f"Incorrect! The correct answer is: {correct_answer}")
-        file.loc[file["Question"] == question, "Fails"] = file[file["Question"] == question]["Fails"].iloc[0] + 1 #if answer is incorrect, the fails count is incremented
+        file.loc[file["Question"] == question, "Fails"] = file[file["Question"] == question]["Fails"].iloc[0] + 1
+        return False, correct_answer  
 
-        return False,correct_answer 
 
 def show(): #shows a random question from the file and asks the answer
     
@@ -101,8 +96,3 @@ def edit(question, new_question, new_answer): #to edit a question and answer
 
 
         file.to_excel("info.xlsx", index=False)
-
-
-
-
-
