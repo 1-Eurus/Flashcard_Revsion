@@ -31,20 +31,34 @@ def add(question,answer):#to add a new question and answer
 def check(question, answer):
     file = open("info.csv",'r', newline='')
     ro = csv.DictReader(file)
-
-    for i in ro:
+    rows = list(ro)
+    file.close()
+    is_correct = False
+    correct_answer = None
+    
+    for i in rows:
         if question == i["Question"]:
+            correct_answer = i["Answer"]
             if answer.lower().strip() == i["Answer"]:
                 print("Correct!")
-                file.close()
-                return True, i["Answer"]
+                i["Success"] = str(int(i["Success"]) + 1)  # ← NEW: Increment success
+                is_correct = True
             else:
                 print(f"Incorrect! The correct answer is: {i['Answer']}")
-                file.close()
-                return False, i["Answer"]
-
-    file.close()
-
+                i["Fails"] = str(int(i["Fails"]) + 1)  # ← NEW: Increment fails
+                is_correct = False
+            break
+    
+    if correct_answer is not None:  # ← NEW: Write updated data back to CSV
+        file = open("info.csv",'w', newline='')
+        fieldnames = ['Question','Answer','Success','Fails']
+        wo = csv.DictWriter(file, fieldnames=fieldnames)
+        wo.writeheader()
+        for row in rows:
+            wo.writerow(row)
+        file.close()
+    return is_correct, correct_answer
+    
 def show(): #shows a random question from the file and asks the answer
     file = open("info.csv",'r', newline='')
     ro = csv.DictReader(file)
@@ -97,3 +111,4 @@ def edit(question, new_question, new_answer): #to edit a question and answer
                 i["Fails"] = "0"
             wo.writerow(i)
         file.close()
+
