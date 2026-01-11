@@ -1,114 +1,104 @@
+import mysql.connector as m
 import random
-import csv
 
 class Empty(Exception):
-    def __init__(self, message="The fields were left empty!"):
-        super().__init__(message) #custom exception for empty fields
+    pass
 
-def exit():
-    file = open("info.csv",'r', newline='')
-    ro = csv.DictReader(file)
-    overview = []
-    for i in ro:
-        overview.append((i["Question"], i['Answer'], i['Success'], i['Fails']))
+
+con = m.connect(
+    host="localhost",
+    user="root",
+    password="----------",
+    database="flashcard"
+)
+cur = con.cursor()
+
+
+def exit_overview():
+    cur.execute("select question, answer, success, fails from flashcards")
+    data = cur.fetchall()
     print("Exiting the program...")
-    print(overview)
-    file.close()
-    return overview #returns the overview of the questions, success and fails
+    print(data)
+    return data
 
-def add(question,answer):#to add a new question and answer
-    file = open("info.csv",'a', newline='')
-    wo = csv.DictWriter(file, fieldnames=["Question","Answer","Success","Fails"])
 
-    if question =="" or answer =="": #checks incase question and answer fields are empty
-        raise(Empty)
-    else:
-        new= {"Question": question.lower().strip(), "Answer": answer, "Success": "0", "Fails": "0"} #answer can only be a single word
-        wo.writerow(new)
+def add(question, answer):
+    if question == "" or answer == "":
+        raise Empty("The fields were left empty!")
 
-    file.close()
+    q = question.lower().strip()
+    cur.execute(
+        "insert into flashcards values (%s,%s,%s,%s)",
+        (q, answer, 0, 0)
+    )
+    con.commit()
+
 
 def check(question, answer):
-    file = open("info.csv",'r', newline='')
-    ro = csv.DictReader(file)
-    rows = list(ro)
-    file.close()
-    is_correct = False
-    correct_answer = None
-    
-    for i in rows:
-        if question == i["Question"]:
-            correct_answer = i["Answer"]
-            if answer.lower().strip() == i["Answer"]:
-                print("Correct!")
-                i["Success"] = str(int(i["Success"]) + 1)  # ← NEW: Increment success
-                is_correct = True
-            else:
-                print(f"Incorrect! The correct answer is: {i['Answer']}")
-                i["Fails"] = str(int(i["Fails"]) + 1)  # ← NEW: Increment fails
-                is_correct = False
-            break
-    
-    if correct_answer is not None:  # ← NEW: Write updated data back to CSV
-        file = open("info.csv",'w', newline='')
-        fieldnames = ['Question','Answer','Success','Fails']
-        wo = csv.DictWriter(file, fieldnames=fieldnames)
-        wo.writeheader()
-        for row in rows:
-            wo.writerow(row)
-        file.close()
-    return is_correct, correct_answer
-    
-def show(): #shows a random question from the file and asks the answer
-    file = open("info.csv",'r', newline='')
-    ro = csv.DictReader(file)
+    cur.execute(
+        "select answer from flashcards where question=%s",
+        (question,)
+    )
+    row = cur.fetchone()
 
-    questions = []
-    for i in ro:
-        questions.append(i["Question"]) #gets all the questions from the file
+    if row is None:
+        return False, None
 
-    if questions==[]: #checks if the file is empty
-        raise(Empty) #if empty the empty exception is raised 
+    correct = row[0]
 
-    while True:
-        if questions==[]: #once all questions are done the loop breaks
-            break
+    if answer.lower().strip() == correct:
+        print("Correct!")
+        cur.execute(
+            "update flashcards set success=success+1 where question=%s",
+            (question,)
+        )
+        con.commit()
+        return True, correct
+    else:
+        print("Incorrect! The correct answer is:", correct)
+        cur.execute(
+            "update flashcards set fails=fails+1 where question=%s",
+            (question,)
+        )
+        con.commit()
+        return False, correct
 
-        question = random.choice(questions) #chooses a random question from the list
-        print(question)
-        answer = input("Enter the answer: ") #replace with input from user interface
 
-        if answer == "1011": #if the answer is this specific input it will stop everything, show results 
-            exit()
+def show():
+    cur.execute("select question from flashcards")
+    qs = cur.fetchall()
+
+    if qs == []:
+        raise Empty("No questions available")
+
+    questions = [i[0] for i in qs]
+
+    while questions:
+        q = random.choice(questions)
+        print(q)
+        ans = input("Enter the answer: ")
+
+        if ans == "1011":
+            exit_overview()
             break
 
-        questions.remove(question) #removes question from list after asking it once
-        check(question,answer)
+        questions.remove(q)
+        check(q, ans)
 
-    file.close()
 
-def edit(question, new_question, new_answer): #to edit a question and answer
-    file = open("info.csv",'r', newline='')
-    ro = csv.DictReader(file)
-    rows = list(ro)
-    questions = [i["Question"] for i in rows] #gets all the questions from the file
-    file.close()
+def edit(question, new_question, new_answer):
+    q = question.lower().strip()
+    nq = new_question.lower().strip()
 
-    if question.lower().strip() not in questions: #checks if the question is in the file
-        print(f"Question '{question}' not found!") 
+    cur.execute("select question from flashcards where question=%s", (q,))
+    if cur.fetchone() is None:
+        print("Question not found!")
         return
 
-    else: #replaces old question and answers with new ones and resets the success and fails count
-        file = open("info.csv",'w', newline='')
-        fieldnames = ['Question','Answer','Success','Fails']
-        wo = csv.DictWriter(file, fieldnames=fieldnames)
-        wo.writeheader()
-        for i in rows:
-            if i["Question"] == question.lower().strip():
-                i["Question"] = new_question
-                i["Answer"] = new_answer
-                i["Success"] = "0"
-                i["Fails"] = "0"
-            wo.writerow(i)
-        file.close()
-
+    cur.execute(
+        """update flashcards
+           set question=%s, answer=%s, success=0, fails=0
+           where question=%s""",
+        (nq, new_answer, q)
+    )
+    con.commit()
